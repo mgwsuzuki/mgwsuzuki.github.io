@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
 
-  <title><![CDATA[like a /dev/null]]></title>
-  <link href="http://mgwsuzuki.github.io/atom.xml" rel="self"/>
+  <title><![CDATA[Category: V6pi | like a /dev/null]]></title>
+  <link href="http://mgwsuzuki.github.io/blog/categories/v6pi/atom.xml" rel="self"/>
   <link href="http://mgwsuzuki.github.io/"/>
   <updated>2014-05-04T20:07:07+09:00</updated>
   <id>http://mgwsuzuki.github.io/</id>
@@ -38,15 +38,6 @@
 <p>これからの予定として、V6 UNIXを移植するというより、ARMのMMUの使い方を調べたりするのがしばらく続くと思う。</p>
 
 <p>自分が理解することを最優先なので、進捗はとても遅いはずである。</p>
-]]></content>
-  </entry>
-  
-  <entry>
-    <title type="html"><![CDATA[1st Post]]></title>
-    <link href="http://mgwsuzuki.github.io/blog/2014/05/03/1st-post/"/>
-    <updated>2014-05-03T23:00:48+09:00</updated>
-    <id>http://mgwsuzuki.github.io/blog/2014/05/03/1st-post</id>
-    <content type="html"><![CDATA[<p>伝言板に書かれた文字は消され、有用な情報やツールもいつかはクソと言われ、熱雑音のように嫌われるものだけが残る。そんな儚いモノたちの行き着く先みたいな場所。</p>
 ]]></content>
   </entry>
   
