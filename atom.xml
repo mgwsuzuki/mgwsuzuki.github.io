@@ -4,7 +4,7 @@
   <title><![CDATA[like a /dev/null]]></title>
   <link href="http://mgwsuzuki.github.io/atom.xml" rel="self"/>
   <link href="http://mgwsuzuki.github.io/"/>
-  <updated>2014-05-04T20:07:07+09:00</updated>
+  <updated>2014-05-05T15:33:44+09:00</updated>
   <id>http://mgwsuzuki.github.io/</id>
   <author>
     <name><![CDATA[mgwsuzuki]]></name>
@@ -12,6 +12,40 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[作業環境]]></title>
+    <link href="http://mgwsuzuki.github.io/blog/2014/05/05/environment/"/>
+    <updated>2014-05-05T14:39:34+09:00</updated>
+    <id>http://mgwsuzuki.github.io/blog/2014/05/05/environment</id>
+    <content type="html"><![CDATA[<p>OSもなしにプログラムをRasPiに実行させる必要がある。SDカードから実行イメージをロードさせる方法もあるのだが、プログラムを書き換えるたびにいちいちSDカードを挿し替えてコピーして、というのは効率が悪い。</p>
+
+<!-- more -->
+
+
+<p>いわゆる組み込み系ではJTAGを使って実行イメージをターゲットに書き込んだりデバッグするのが普通である。ということで、RasPiに使えるJTAGツールを通販で購入した。OlimexのARM-USB-TINY-Hというものである。</p>
+
+<p>これをRasPiのピンヘッダに挿すわけだが、信号配置が違うのでそのまま挿せるわけではない。なのでブレッドボードで使うようなジャンパーコードでつなぐわけだが、抜けてしまったときに間違ったピンに接続するケースが間違いなく起こるので、手元にあるパーツを使って専用のケーブルを作った。</p>
+
+<p><img src="http://mgwsuzuki.github.io/images/20140408_baremetal.jpg" alt="" /></p>
+
+<p>こうするとまず間違えないから安心して使うことができる。</p>
+
+<p>余談だが、とある作業でRasPiのピン接続を間違って1台お釈迦にしたことがある。間違いに電源ピンが絡むと壊れる可能性がぐっと高くなるので注意である。</p>
+
+<p>ちなみに右下のボードはUSBシリアルである。この手の開発には必須なので、あらかじめ用意してある。</p>
+
+<p>母艦のソフトウェアはeclipseを使うことにした。といっても、それでコーディングすることはなく、JTAGを経由した実行イメージのロードとデバッグがメインである。</p>
+
+<p>その方法が非常によくまとめられていたサイトがあって、参考にさせて頂いた。</p>
+
+<p><a href="http://qiita.com/yamanekko/items/3b1eae1934c4ead618cf">mrubyをRaspberry Pi(bare metal)で動かす: Windows編</a></p>
+
+<p>RasPiとJTAGツールの結線情報も書かれている。</p>
+
+<p>たぶんeclipseを使わずにgdbをベタで使っても同じことが出来るのだろう。ストイックで自分には出来ないけど。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[V6piはじめました]]></title>
@@ -35,9 +69,9 @@
 
 <p>今のところV6 UNIXどころじゃなくて、CPUのブートからCのmain関数がコールできるまでのコードを整備したり、GPIOのピン設定の簡易ライブラリが出来上がってる程度である。</p>
 
-<p>これからの予定として、V6 UNIXを移植するというより、ARMのMMUの使い方を調べたりするのがしばらく続くと思う。</p>
+<p>これからの予定として、V6 UNIXをすぐに移植するというより、ARMのMMUの使い方を調べたりするのがしばらく続くと思う。</p>
 
-<p>自分が理解することを最優先なので、進捗はとても遅いはずである。</p>
+<p>自分が理解することが最優先なので、進捗はとても遅いはずである。</p>
 ]]></content>
   </entry>
   

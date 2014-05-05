@@ -5,12 +5,11 @@
 <!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
 <head>
   <meta charset="utf-8">
-  <title>1st Post - like a /dev/null</title>
+  <title>作業環境 - like a /dev/null</title>
   <meta name="author" content="mgwsuzuki">
 
   
-  <meta name="description" content="伝言板に書かれた文字は消され、有用な情報やツールもいつかはクソと言われ、熱雑音のように嫌われるものだけが残る。そんな儚いモノたちの行き着く先みたいな場所。
-">
+  <meta name="description" content="OSもなしにプログラムをRasPiに実行させる必要がある。SDカードから実行イメージをロードさせる方法もあるのだが、プログラムを書き換えるたびにいちいちSDカードを挿し替えてコピーして、というのは効率が悪い。 &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -19,7 +18,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   
-  <link rel="canonical" href="http://mgwsuzuki.github.io/blog/2014/05/03/1st-post">
+  <link rel="canonical" href="http://mgwsuzuki.github.io/blog/2014/05/05/environment">
   <link href="/favicon.png" rel="icon">
   <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
   <link href="/atom.xml" rel="alternate" title="like a /dev/null" type="application/atom+xml">
@@ -81,7 +80,7 @@
   
   <header>
     
-      <h1 class="entry-title">1st Post</h1>
+      <h1 class="entry-title">作業環境</h1>
     
     
       <p class="meta">
@@ -97,14 +96,39 @@
   
 
 
-<time datetime="2014-05-03T23:00:48+09:00" pubdate data-updated="true">May 3<span>rd</span>, 2014</time>
+<time datetime="2014-05-05T14:39:34+09:00" pubdate data-updated="true">May 5<span>th</span>, 2014</time>
         
       </p>
     
   </header>
 
 
-<div class="entry-content"><p>伝言板に書かれた文字は消され、有用な情報やツールもいつかはクソと言われ、熱雑音のように嫌われるものだけが残る。そんな儚いモノたちの行き着く先みたいな場所。</p>
+<div class="entry-content"><p>OSもなしにプログラムをRasPiに実行させる必要がある。SDカードから実行イメージをロードさせる方法もあるのだが、プログラムを書き換えるたびにいちいちSDカードを挿し替えてコピーして、というのは効率が悪い。</p>
+
+<!-- more -->
+
+
+<p>いわゆる組み込み系ではJTAGを使って実行イメージをターゲットに書き込んだりデバッグするのが普通である。ということで、RasPiに使えるJTAGツールを通販で購入した。OlimexのARM-USB-TINY-Hというものである。</p>
+
+<p>これをRasPiのピンヘッダに挿すわけだが、信号配置が違うのでそのまま挿せるわけではない。なのでブレッドボードで使うようなジャンパーコードでつなぐわけだが、抜けてしまったときに間違ったピンに接続するケースが間違いなく起こるので、手元にあるパーツを使って専用のケーブルを作った。</p>
+
+<p><img src="/images/20140408_baremetal.jpg" alt="" /></p>
+
+<p>こうするとまず間違えないから安心して使うことができる。</p>
+
+<p>余談だが、とある作業でRasPiのピン接続を間違って1台お釈迦にしたことがある。間違いに電源ピンが絡むと壊れる可能性がぐっと高くなるので注意である。</p>
+
+<p>ちなみに右下のボードはUSBシリアルである。この手の開発には必須なので、あらかじめ用意してある。</p>
+
+<p>母艦のソフトウェアはeclipseを使うことにした。といっても、それでコーディングすることはなく、JTAGを経由した実行イメージのロードとデバッグがメインである。</p>
+
+<p>その方法が非常によくまとめられていたサイトがあって、参考にさせて頂いた。</p>
+
+<p><a href="http://qiita.com/yamanekko/items/3b1eae1934c4ead618cf">mrubyをRaspberry Pi(bare metal)で動かす: Windows編</a></p>
+
+<p>RasPiとJTAGツールの結線情報も書かれている。</p>
+
+<p>たぶんeclipseを使わずにgdbをベタで使っても同じことが出来るのだろう。ストイックで自分には出来ないけど。</p>
 </div>
 
 
@@ -127,15 +151,21 @@
   
 
 
-<time datetime="2014-05-03T23:00:48+09:00" pubdate data-updated="true">May 3<span>rd</span>, 2014</time>
+<time datetime="2014-05-05T14:39:34+09:00" pubdate data-updated="true">May 5<span>th</span>, 2014</time>
       
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/v6pi/'>v6pi</a>
+  
+</span>
 
 
     </p>
     
       <div class="sharing">
   
-  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://mgwsuzuki.github.io/blog/2014/05/03/1st-post/" data-via="" data-counturl="http://mgwsuzuki.github.io/blog/2014/05/03/1st-post/" >Tweet</a>
+  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://mgwsuzuki.github.io/blog/2014/05/05/environment/" data-via="" data-counturl="http://mgwsuzuki.github.io/blog/2014/05/05/environment/" >Tweet</a>
   
   
   
@@ -144,8 +174,8 @@
     
     <p class="meta">
       
+        <a class="basic-alignment left" href="/blog/2014/05/04/v6pi/" title="Previous Post: v6piはじめました">&laquo; v6piはじめました</a>
       
-        <a class="basic-alignment right" href="/blog/2014/05/04/v6pi/" title="Next Post: v6piはじめました">v6piはじめました &raquo;</a>
       
     </p>
   </footer>
