@@ -4,7 +4,7 @@
   <title><![CDATA[like a /dev/null]]></title>
   <link href="http://mgwsuzuki.github.io/atom.xml" rel="self"/>
   <link href="http://mgwsuzuki.github.io/"/>
-  <updated>2014-05-05T15:33:44+09:00</updated>
+  <updated>2014-05-06T19:01:29+09:00</updated>
   <id>http://mgwsuzuki.github.io/</id>
   <author>
     <name><![CDATA[mgwsuzuki]]></name>
@@ -12,6 +12,137 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[コマンドラインでgdb]]></title>
+    <link href="http://mgwsuzuki.github.io/blog/2014/05/06/gdb/"/>
+    <updated>2014-05-06T18:19:10+09:00</updated>
+    <id>http://mgwsuzuki.github.io/blog/2014/05/06/gdb</id>
+    <content type="html"><![CDATA[<p>コマンドラインからgdbを使ってRasPiに実行イメージをロードして実行してみた。</p>
+
+<!-- more -->
+
+
+<p>gdbはもっぱらeclipseから使っているけど、コマンドラインから使う方法を一応調べてみた。</p>
+
+<p><a href="http://qiita.com/yamanekko/items/3b1eae1934c4ead618cf">mrubyをRaspberry Pi(bare metal)で動かす: Windows編</a>にあった通りに環境を構築していて、主なツールは以下のとおり。</p>
+
+<ul>
+<li>OpenOCD</li>
+<li>YAGARTO</li>
+</ul>
+
+
+<p>それぞれインストールしたディレクトリを$(OPENOCD), $(YAGARTO)とする。</p>
+
+<p>ARM用のgdbはYAGARTOに含まれていて、これとJTAGツールを接続するためにOpenOCDがある。関係を図にすると以下のような感じ。</p>
+
+<p><img src="http://mgwsuzuki.github.io/images/20140506_gdb_openocd_raspi.png" alt="" /></p>
+
+<p>RasPiのSDカードにはmruby(略)のサイトにあったとおり、JTAGデバッグに必要なファイルをコピーしておく。</p>
+
+<h1>OpenOCDの起動</h1>
+
+<p>コマンドは以下の通り。</p>
+
+<pre><code>$(OPENOCD)/bin/openocd-0.7.0.exe -f $(OPENOCD)/scripts/interface/olimex-arm-usb-tiny-h.cfg -f ./raspi.cfg
+</code></pre>
+
+<p>なお、OpenOCDを起動する前にRasPiの電源を投入し、JTAGツールをUSBで接続しておく。</p>
+
+<p>raspi.cfgはmruby(略)のサイトの手順通りに作業するとどこかのリポジトリから取得される。raspiプロジェクトを作成するところだったかな。</p>
+
+<p>無事起動すると以下のようなメッセージがでる。</p>
+
+<pre><code>Open On-Chip Debugger 0.7.0 (2013-05-05-10:41)
+Licensed under GNU GPL v2
+For bug reports, read
+        http://openocd.sourceforge.net/doc/doxygen/bugs.html
+Info : only one transport option; autoselect 'jtag'
+adapter speed: 1000 kHz
+none separate
+raspi.arm
+Info : max TCK change to: 30000 kHz
+Info : clock speed 1000 kHz
+Info : JTAG tap: raspi.arm tap/device found: 0x07b7617f (mfg: 0x0bf, part: 0x7b76, ver: 0x0)
+Info : found ARM1176
+Info : raspi.arm: hardware has 6 breakpoints, 2 watchpoints
+</code></pre>
+
+<p>OpenOCDは自分自身の制御のために4444ポートにtelnetで接続できる。</p>
+
+<p>ほとんど使うことは無いと思ったが、実はgdbを接続したときにARMが動作しているとgdbが何もできないという状態になる。</p>
+
+<p>ということで、telnetなり、他のツールを使ってlocalhost:4444に接続し、haltコマンドを実行しておく。</p>
+
+<h1>gdbの起動</h1>
+
+<p>起動の前に、実行したいプログラムのelfファイルをtarget.elfとして作業ディレクトリにコピーしておく。ここではv6piのgpioのそれをコピーした。うまく実行できればACT LEDが点滅する。</p>
+
+<p>gdbの起動コマンドは以下の通り。</p>
+
+<pre><code>$(YAGARTO)/bin/arm-none-eabi-gdb.exe target.elf
+</code></pre>
+
+<p>続いて以下のコマンドを入力する。</p>
+
+<pre><code>target remote localhost:3333
+load
+</code></pre>
+
+<p>後はnextとかstepとかlistとかでステップ実行できる。適当にこれらコマンドを実行したログは以下の通り。なお、nはnext, lはlistの略コマンド。</p>
+
+<pre><code>(gdb) target remote localhost:3333
+Remote debugging using localhost:3333
+vp_gpio_set_fsel (portnum=743516865, fsel=VP_GPIO_FSEL_INPUT) at vp_gpio.c:45
+45        }else if (portnum &lt; 54){
+(gdb) load
+Loading section .text, size 0x2f8 lma 0x8000
+Start address 0x8000, load size 760
+Transfer rate: 6080 bits in &lt;1 sec, 760 bytes/write.
+(gdb) n
+Single stepping until exit from function _start,
+which has no line number information.
+stepi ignored. GDB will now fetch the register state from the target.
+
+Program received signal SIGINT, Interrupt.
+0x00008000 in _start ()
+(gdb) n
+Single stepping until exit from function _start,
+which has no line number information.
+0x00008040 in reset_handler ()
+(gdb) n
+Single stepping until exit from function reset_handler,
+which has no line number information.
+main () at main.c:21
+21      int main(){
+(gdb) n
+24        vp_gpio_set_fsel(16, VP_GPIO_FSEL_OUTPUT);
+(gdb) l
+19      }
+20
+21      int main(){
+22        u32_t n;
+23        // ACT LEDのピンをoutputにする
+24        vp_gpio_set_fsel(16, VP_GPIO_FSEL_OUTPUT);
+25
+26        while(1){
+27          vp_gpio_clear_output(16);
+28          delay();
+(gdb) n
+27          vp_gpio_clear_output(16);
+(gdb) n
+28          delay();
+(gdb) n
+29          vp_gpio_set_output(16);
+(gdb)
+</code></pre>
+
+<p>ステップ実行じゃなくて、ブレークポイントに達するまで実行するのはcontinueコマンドである。ブレークポイントを指定してなかったら永遠に実行しつづける。</p>
+
+<p>continueから抜ける方法を調べようとしたところで疲れたので終了。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[作業環境]]></title>

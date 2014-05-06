@@ -1,0 +1,367 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>コマンドラインでgdb - like a /dev/null</title>
+  <meta name="author" content="mgwsuzuki">
+
+  
+  <meta name="description" content="コマンドラインからgdbを使ってRasPiに実行イメージをロードして実行してみた。 gdbはもっぱらeclipseから使っているけど、コマンドラインから使う方法を一応調べてみた。 mrubyをRaspberry Pi(bare metal)で動かす: &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://mgwsuzuki.github.io/blog/2014/05/06/gdb">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <link href="/atom.xml" rel="alternate" title="like a /dev/null" type="application/atom+xml">
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script>!window.jQuery && document.write(unescape('%3Cscript src="./javascripts/libs/jquery.min.js"%3E%3C/script%3E'))</script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="//fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="//fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-18056731-5']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <h1><a href="/">like a /dev/null</a></h1>
+  
+    <h2>いつかは捨てられる儚いモノたちの吹き溜まり</h2>
+  
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+</ul>
+  
+<form action="https://www.google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:mgwsuzuki.github.io" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      <h1 class="entry-title">コマンドラインでgdb</h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-05-06T18:19:10+09:00" pubdate data-updated="true">May 6<span>th</span>, 2014</time>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>コマンドラインからgdbを使ってRasPiに実行イメージをロードして実行してみた。</p>
+
+<!-- more -->
+
+
+<p>gdbはもっぱらeclipseから使っているけど、コマンドラインから使う方法を一応調べてみた。</p>
+
+<p><a href="http://qiita.com/yamanekko/items/3b1eae1934c4ead618cf">mrubyをRaspberry Pi(bare metal)で動かす: Windows編</a>にあった通りに環境を構築していて、主なツールは以下のとおり。</p>
+
+<ul>
+<li>OpenOCD</li>
+<li>YAGARTO</li>
+</ul>
+
+
+<p>それぞれインストールしたディレクトリを$(OPENOCD), $(YAGARTO)とする。</p>
+
+<p>ARM用のgdbはYAGARTOに含まれていて、これとJTAGツールを接続するためにOpenOCDがある。関係を図にすると以下のような感じ。</p>
+
+<p><img src="/images/20140506_gdb_openocd_raspi.png" alt="" /></p>
+
+<p>RasPiのSDカードにはmruby(略)のサイトにあったとおり、JTAGデバッグに必要なファイルをコピーしておく。</p>
+
+<h1>OpenOCDの起動</h1>
+
+<p>コマンドは以下の通り。</p>
+
+<pre><code>$(OPENOCD)/bin/openocd-0.7.0.exe -f $(OPENOCD)/scripts/interface/olimex-arm-usb-tiny-h.cfg -f ./raspi.cfg
+</code></pre>
+
+<p>なお、OpenOCDを起動する前にRasPiの電源を投入し、JTAGツールをUSBで接続しておく。</p>
+
+<p>raspi.cfgはmruby(略)のサイトの手順通りに作業するとどこかのリポジトリから取得される。raspiプロジェクトを作成するところだったかな。</p>
+
+<p>無事起動すると以下のようなメッセージがでる。</p>
+
+<pre><code>Open On-Chip Debugger 0.7.0 (2013-05-05-10:41)
+Licensed under GNU GPL v2
+For bug reports, read
+        http://openocd.sourceforge.net/doc/doxygen/bugs.html
+Info : only one transport option; autoselect 'jtag'
+adapter speed: 1000 kHz
+none separate
+raspi.arm
+Info : max TCK change to: 30000 kHz
+Info : clock speed 1000 kHz
+Info : JTAG tap: raspi.arm tap/device found: 0x07b7617f (mfg: 0x0bf, part: 0x7b76, ver: 0x0)
+Info : found ARM1176
+Info : raspi.arm: hardware has 6 breakpoints, 2 watchpoints
+</code></pre>
+
+<p>OpenOCDは自分自身の制御のために4444ポートにtelnetで接続できる。</p>
+
+<p>ほとんど使うことは無いと思ったが、実はgdbを接続したときにARMが動作しているとgdbが何もできないという状態になる。</p>
+
+<p>ということで、telnetなり、他のツールを使ってlocalhost:4444に接続し、haltコマンドを実行しておく。</p>
+
+<h1>gdbの起動</h1>
+
+<p>起動の前に、実行したいプログラムのelfファイルをtarget.elfとして作業ディレクトリにコピーしておく。ここではv6piのgpioのそれをコピーした。うまく実行できればACT LEDが点滅する。</p>
+
+<p>gdbの起動コマンドは以下の通り。</p>
+
+<pre><code>$(YAGARTO)/bin/arm-none-eabi-gdb.exe target.elf
+</code></pre>
+
+<p>続いて以下のコマンドを入力する。</p>
+
+<pre><code>target remote localhost:3333
+load
+</code></pre>
+
+<p>後はnextとかstepとかlistとかでステップ実行できる。適当にこれらコマンドを実行したログは以下の通り。なお、nはnext, lはlistの略コマンド。</p>
+
+<pre><code>(gdb) target remote localhost:3333
+Remote debugging using localhost:3333
+vp_gpio_set_fsel (portnum=743516865, fsel=VP_GPIO_FSEL_INPUT) at vp_gpio.c:45
+45        }else if (portnum &lt; 54){
+(gdb) load
+Loading section .text, size 0x2f8 lma 0x8000
+Start address 0x8000, load size 760
+Transfer rate: 6080 bits in &lt;1 sec, 760 bytes/write.
+(gdb) n
+Single stepping until exit from function _start,
+which has no line number information.
+stepi ignored. GDB will now fetch the register state from the target.
+
+Program received signal SIGINT, Interrupt.
+0x00008000 in _start ()
+(gdb) n
+Single stepping until exit from function _start,
+which has no line number information.
+0x00008040 in reset_handler ()
+(gdb) n
+Single stepping until exit from function reset_handler,
+which has no line number information.
+main () at main.c:21
+21      int main(){
+(gdb) n
+24        vp_gpio_set_fsel(16, VP_GPIO_FSEL_OUTPUT);
+(gdb) l
+19      }
+20
+21      int main(){
+22        u32_t n;
+23        // ACT LEDのピンをoutputにする
+24        vp_gpio_set_fsel(16, VP_GPIO_FSEL_OUTPUT);
+25
+26        while(1){
+27          vp_gpio_clear_output(16);
+28          delay();
+(gdb) n
+27          vp_gpio_clear_output(16);
+(gdb) n
+28          delay();
+(gdb) n
+29          vp_gpio_set_output(16);
+(gdb)
+</code></pre>
+
+<p>ステップ実行じゃなくて、ブレークポイントに達するまで実行するのはcontinueコマンドである。ブレークポイントを指定してなかったら永遠に実行しつづける。</p>
+
+<p>continueから抜ける方法を調べようとしたところで疲れたので終了。</p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">mgwsuzuki</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-05-06T18:19:10+09:00" pubdate data-updated="true">May 6<span>th</span>, 2014</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/v6pi/'>v6pi</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://mgwsuzuki.github.io/blog/2014/05/06/gdb/" data-via="" data-counturl="http://mgwsuzuki.github.io/blog/2014/05/06/gdb/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left" href="/blog/2014/05/05/environment/" title="Previous Post: 作業環境">&laquo; 作業環境</a>
+      
+      
+    </p>
+  </footer>
+  <script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+  <!-- 記事下 -->
+  <ins class="adsbygoogle"
+       style="display:inline-block;width:468px;height:60px"
+       data-ad-client="ca-pub-8758761557521197"
+       data-ad-slot="1425043892"></ins>
+  <script>
+    (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</article>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+<!-- サイド -->
+<ins class="adsbygoogle"
+     style="display:inline-block;width:300px;height:250px"
+     data-ad-client="ca-pub-8758761557521197"
+     data-ad-slot="2762176290"></ins>
+<script>
+(adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</section>
+<section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/05/06/gdb/">コマンドラインでgdb</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/05/environment/">作業環境</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/04/v6pi/">V6piはじめました</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/03/1st-post/">1st Post</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - mgwsuzuki -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = '//platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>
