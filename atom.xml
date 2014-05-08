@@ -4,7 +4,7 @@
   <title><![CDATA[like a /dev/null]]></title>
   <link href="http://mgwsuzuki.github.io/atom.xml" rel="self"/>
   <link href="http://mgwsuzuki.github.io/"/>
-  <updated>2014-05-06T19:01:29+09:00</updated>
+  <updated>2014-05-08T20:27:23+09:00</updated>
   <id>http://mgwsuzuki.github.io/</id>
   <author>
     <name><![CDATA[mgwsuzuki]]></name>
@@ -12,6 +12,130 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[RasPiの起動とarmjtag]]></title>
+    <link href="http://mgwsuzuki.github.io/blog/2014/05/08/booting/"/>
+    <updated>2014-05-08T19:36:36+09:00</updated>
+    <id>http://mgwsuzuki.github.io/blog/2014/05/08/booting</id>
+    <content type="html"><![CDATA[<p>Raspberry Piの電源を投入したらどのような手順で所望のプログラムが起動するか、そしてJTAGが使用可能になるのかを調べてみた。</p>
+
+<!-- more -->
+
+
+<h1>起動直後</h1>
+
+<p><a href="http://qiita.com/yamanekko/items/3b1eae1934c4ead618cf">mrubyをRaspberry Pi(bare metal)で動かす: Windows編</a>の通りにJTAGを使えるように作業すると、SDカードに以下のファイルを用意することになる。</p>
+
+<ul>
+<li>bootcode.bin</li>
+<li>start.elf</li>
+<li>kernel.img</li>
+</ul>
+
+
+<p>これらのファイルが何か、というのを調べたところ、次のような情報があった。</p>
+
+<p><a href="http://raspberrypi.stackexchange.com/questions/10489/how-does-raspberry-pi-boot">http://raspberrypi.stackexchange.com/questions/10489/how-does-raspberry-pi-boot</a></p>
+
+<p>訳すとこんな感じだろうか。</p>
+
+<hr />
+
+<ul>
+<li>RasPiの電源投入直後、ARMコアはoffでGPUコアがonにになっており、SDRAMはdisableである。</li>
+<li>GPUはSoCに内蔵されている1st stage bootloaderの実行を開始する。1st stage bootloaderはSDカードを読み、2nd stage bootloader(bootcode.bin)をL2 cacheに読み出して実行する。</li>
+<li>bootcode.binはSDRAMをenableにし、SDカードから3rd stage bootloader(loader.bin)をRAMに読み出して実行する。</li>
+<li>loader.binはGPU firmware(start.elf)を読み出す。</li>
+<li>start.elfはconfig.txt, cmdline.txt, kernel.imgを読み出す。</li>
+</ul>
+
+
+<p>loader.binは大してなにもしない。これは.elfファイルを扱うことができ、start.elfをメモリの最初に読み出すのに必要である(ARMはSDRAMをアドレス0番地から使用する)。</p>
+
+<p>bootcode.binに.elf読み出し機能を追加する予定があり、そうなるとloader.binは不要になる。ただ、作業の優先度は低い。</p>
+
+<hr />
+
+<p>「電源投入直後、ARMコアがoffでGPUコアがonになっており」ってほんと? という気がして調べてみたけど、寄り道な気がしたので深追いしないことにした。</p>
+
+<p>loader.binというのはSDカードにコピーしていないので、bootcode.binに取り込まれたのだろう。</p>
+
+<p>読み込む実行イメージのファイル名はkernel.imgに固定されているようだ。</p>
+
+<p>SDカードにcmdline.txtは用意していないけど、フォーマットは以下のようだ(自分は試していない)。</p>
+
+<p><a href="http://elinux.org/RPiconfig">http://elinux.org/RPiconfig</a></p>
+
+<p>kernel.imgを読み出した後は書かれていないけど、プログラムカウンタが0x8000にセットされる。なので、自分で作った実行イメージは必ず0x8000にリセットベクタ相当のコードがないといけない。</p>
+
+<h1>armjtag</h1>
+
+<p>SDカードにコピーされるkernel.imgはarmjtagと呼ばれているもので、以下から取得できる。</p>
+
+<p><a href="https://github.com/dwelch67/raspberrypi/tree/master/armjtag">https://github.com/dwelch67/raspberrypi/tree/master/armjtag</a></p>
+
+<p>ちなみにこのリポジトリにはbare metalでRasPiを使うための情報がかなり蓄積されていて、自分もちょこちょこ確認していたりする。</p>
+
+<p>このarmjtagは何をやっているかというと、次のとおり。</p>
+
+<ul>
+<li>RasPiのピンヘッダにJTAGのピンがマッピングされるように設定</li>
+<li>タイマを使い、無限ループでACT LEDを点滅させる</li>
+</ul>
+
+
+<p>GPIOは有限のピンに多数の機能をマッピングできるように、またボード設計におけるピン配置の柔軟性をあげるために、ピンごとにそれをどのように使いたいかを設定することができる。</p>
+
+<p>単なる入力、出力ピンにすることもできるし、alternate functionとして6つ設定できるようになっている。ここらあたりはSoC-Peripherals.pdfの&#8221;6. General Purpose I/O&#8221;に書かれている。</p>
+
+<p>というわけで、以下のようにGPIOにJTAGのピンを割り当てている。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left"> GPIO   </th>
+<th align="left"> JTAG    </th>
+<th align="left"> func </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"> GPIO4  </td>
+<td align="left"> ARM_TDI </td>
+<td align="left"> ALT5 </td>
+</tr>
+<tr>
+<td align="left"> GPIO22 </td>
+<td align="left"> ARM_TRST</td>
+<td align="left"> ALT4 </td>
+</tr>
+<tr>
+<td align="left"> GPIO24 </td>
+<td align="left"> ARM_TDO </td>
+<td align="left"> ALT4 </td>
+</tr>
+<tr>
+<td align="left"> GPIO25 </td>
+<td align="left"> ARM_TCK </td>
+<td align="left"> ALT4 </td>
+</tr>
+<tr>
+<td align="left"> GPIO27 </td>
+<td align="left"> ARM_TMS </td>
+<td align="left"> ALT4 </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>また、これらのピンのpull-up/downを無効にしている。でも、入力ピンは無接続に備えてpull-upかdownにしたほうが良い気がする。</p>
+
+<p>後はLEDを点滅させるためにタイマを使っている。といっても割り込みを使っているわけじゃなく、動作させてカウンタ値を無限ループで確認し、所定の値になったらLEDをon/offしている。</p>
+
+<p>なお、事前にLEDにつながっているGPIO16をoutputモードにしている。このピンをLにするとLEDが点灯し、HにするとLEDが消灯する。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[コマンドラインでgdb]]></title>

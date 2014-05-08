@@ -1,0 +1,365 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>RasPiの起動とarmjtag - like a /dev/null</title>
+  <meta name="author" content="mgwsuzuki">
+
+  
+  <meta name="description" content="Raspberry Piの電源を投入したらどのような手順で所望のプログラムが起動するか、そしてJTAGが使用可能になるのかを調べてみた。 起動直後 mrubyをRaspberry Pi(bare metal)で動かす: Windows編の通りにJTAGを使えるように作業すると、 &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://mgwsuzuki.github.io/blog/2014/05/08/booting">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <link href="/atom.xml" rel="alternate" title="like a /dev/null" type="application/atom+xml">
+  <link href="/stylesheets/data-table.css" rel="stylesheet" type="text/css" />
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script>!window.jQuery && document.write(unescape('%3Cscript src="./javascripts/libs/jquery.min.js"%3E%3C/script%3E'))</script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="//fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="//fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-18056731-5']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <h1><a href="/">like a /dev/null</a></h1>
+  
+    <h2>いつかは捨てられる儚いモノたちの吹き溜まり</h2>
+  
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+</ul>
+  
+<form action="https://www.google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:mgwsuzuki.github.io" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      <h1 class="entry-title">RasPiの起動とarmjtag</h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-05-08T19:36:36+09:00" pubdate data-updated="true">May 8<span>th</span>, 2014</time>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>Raspberry Piの電源を投入したらどのような手順で所望のプログラムが起動するか、そしてJTAGが使用可能になるのかを調べてみた。</p>
+
+<!-- more -->
+
+
+<h1>起動直後</h1>
+
+<p><a href="http://qiita.com/yamanekko/items/3b1eae1934c4ead618cf">mrubyをRaspberry Pi(bare metal)で動かす: Windows編</a>の通りにJTAGを使えるように作業すると、SDカードに以下のファイルを用意することになる。</p>
+
+<ul>
+<li>bootcode.bin</li>
+<li>start.elf</li>
+<li>kernel.img</li>
+</ul>
+
+
+<p>これらのファイルが何か、というのを調べたところ、次のような情報があった。</p>
+
+<p><a href="http://raspberrypi.stackexchange.com/questions/10489/how-does-raspberry-pi-boot">http://raspberrypi.stackexchange.com/questions/10489/how-does-raspberry-pi-boot</a></p>
+
+<p>訳すとこんな感じだろうか。</p>
+
+<hr />
+
+<ul>
+<li>RasPiの電源投入直後、ARMコアはoffでGPUコアがonにになっており、SDRAMはdisableである。</li>
+<li>GPUはSoCに内蔵されている1st stage bootloaderの実行を開始する。1st stage bootloaderはSDカードを読み、2nd stage bootloader(bootcode.bin)をL2 cacheに読み出して実行する。</li>
+<li>bootcode.binはSDRAMをenableにし、SDカードから3rd stage bootloader(loader.bin)をRAMに読み出して実行する。</li>
+<li>loader.binはGPU firmware(start.elf)を読み出す。</li>
+<li>start.elfはconfig.txt, cmdline.txt, kernel.imgを読み出す。</li>
+</ul>
+
+
+<p>loader.binは大してなにもしない。これは.elfファイルを扱うことができ、start.elfをメモリの最初に読み出すのに必要である(ARMはSDRAMをアドレス0番地から使用する)。</p>
+
+<p>bootcode.binに.elf読み出し機能を追加する予定があり、そうなるとloader.binは不要になる。ただ、作業の優先度は低い。</p>
+
+<hr />
+
+<p>「電源投入直後、ARMコアがoffでGPUコアがonになっており」ってほんと? という気がして調べてみたけど、寄り道な気がしたので深追いしないことにした。</p>
+
+<p>loader.binというのはSDカードにコピーしていないので、bootcode.binに取り込まれたのだろう。</p>
+
+<p>読み込む実行イメージのファイル名はkernel.imgに固定されているようだ。</p>
+
+<p>SDカードにcmdline.txtは用意していないけど、フォーマットは以下のようだ(自分は試していない)。</p>
+
+<p><a href="http://elinux.org/RPiconfig">http://elinux.org/RPiconfig</a></p>
+
+<p>kernel.imgを読み出した後は書かれていないけど、プログラムカウンタが0x8000にセットされる。なので、自分で作った実行イメージは必ず0x8000にリセットベクタ相当のコードがないといけない。</p>
+
+<h1>armjtag</h1>
+
+<p>SDカードにコピーされるkernel.imgはarmjtagと呼ばれているもので、以下から取得できる。</p>
+
+<p><a href="https://github.com/dwelch67/raspberrypi/tree/master/armjtag">https://github.com/dwelch67/raspberrypi/tree/master/armjtag</a></p>
+
+<p>ちなみにこのリポジトリにはbare metalでRasPiを使うための情報がかなり蓄積されていて、自分もちょこちょこ確認していたりする。</p>
+
+<p>このarmjtagは何をやっているかというと、次のとおり。</p>
+
+<ul>
+<li>RasPiのピンヘッダにJTAGのピンがマッピングされるように設定</li>
+<li>タイマを使い、無限ループでACT LEDを点滅させる</li>
+</ul>
+
+
+<p>GPIOは有限のピンに多数の機能をマッピングできるように、またボード設計におけるピン配置の柔軟性をあげるために、ピンごとにそれをどのように使いたいかを設定することができる。</p>
+
+<p>単なる入力、出力ピンにすることもできるし、alternate functionとして6つ設定できるようになっている。ここらあたりはSoC-Peripherals.pdfの&#8221;6. General Purpose I/O&#8221;に書かれている。</p>
+
+<p>というわけで、以下のようにGPIOにJTAGのピンを割り当てている。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left"> GPIO   </th>
+<th align="left"> JTAG    </th>
+<th align="left"> func </th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"> GPIO4  </td>
+<td align="left"> ARM_TDI </td>
+<td align="left"> ALT5 </td>
+</tr>
+<tr>
+<td align="left"> GPIO22 </td>
+<td align="left"> ARM_TRST</td>
+<td align="left"> ALT4 </td>
+</tr>
+<tr>
+<td align="left"> GPIO24 </td>
+<td align="left"> ARM_TDO </td>
+<td align="left"> ALT4 </td>
+</tr>
+<tr>
+<td align="left"> GPIO25 </td>
+<td align="left"> ARM_TCK </td>
+<td align="left"> ALT4 </td>
+</tr>
+<tr>
+<td align="left"> GPIO27 </td>
+<td align="left"> ARM_TMS </td>
+<td align="left"> ALT4 </td>
+</tr>
+</tbody>
+</table>
+
+
+<p>また、これらのピンのpull-up/downを無効にしている。でも、入力ピンは無接続に備えてpull-upかdownにしたほうが良い気がする。</p>
+
+<p>後はLEDを点滅させるためにタイマを使っている。といっても割り込みを使っているわけじゃなく、動作させてカウンタ値を無限ループで確認し、所定の値になったらLEDをon/offしている。</p>
+
+<p>なお、事前にLEDにつながっているGPIO16をoutputモードにしている。このピンをLにするとLEDが点灯し、HにするとLEDが消灯する。</p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">mgwsuzuki</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-05-08T19:36:36+09:00" pubdate data-updated="true">May 8<span>th</span>, 2014</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/v6pi/'>v6pi</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://mgwsuzuki.github.io/blog/2014/05/08/booting/" data-via="" data-counturl="http://mgwsuzuki.github.io/blog/2014/05/08/booting/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left" href="/blog/2014/05/06/gdb/" title="Previous Post: コマンドラインでgdb">&laquo; コマンドラインでgdb</a>
+      
+      
+    </p>
+  </footer>
+  <script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+  <!-- 記事下 -->
+  <ins class="adsbygoogle"
+       style="display:inline-block;width:468px;height:60px"
+       data-ad-client="ca-pub-8758761557521197"
+       data-ad-slot="1425043892"></ins>
+  <script>
+    (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</article>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+<!-- サイド -->
+<ins class="adsbygoogle"
+     style="display:inline-block;width:300px;height:250px"
+     data-ad-client="ca-pub-8758761557521197"
+     data-ad-slot="2762176290"></ins>
+<script>
+(adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</section>
+<section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/05/08/booting/">RasPiの起動とarmjtag</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/06/gdb/">コマンドラインでgdb</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/05/environment/">作業環境</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/04/v6pi/">V6piはじめました</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/03/1st-post/">1st Post</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - mgwsuzuki -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = '//platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>
