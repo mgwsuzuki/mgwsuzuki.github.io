@@ -4,7 +4,7 @@
   <title><![CDATA[like a /dev/null]]></title>
   <link href="http://mgwsuzuki.github.io/atom.xml" rel="self"/>
   <link href="http://mgwsuzuki.github.io/"/>
-  <updated>2014-05-08T20:27:23+09:00</updated>
+  <updated>2014-05-19T22:16:14+09:00</updated>
   <id>http://mgwsuzuki.github.io/</id>
   <author>
     <name><![CDATA[mgwsuzuki]]></name>
@@ -12,6 +12,235 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Baseなコード]]></title>
+    <link href="http://mgwsuzuki.github.io/blog/2014/05/19/base/"/>
+    <updated>2014-05-19T20:06:09+09:00</updated>
+    <id>http://mgwsuzuki.github.io/blog/2014/05/19/base</id>
+    <content type="html"><![CDATA[<p>OSなしのCPUで、どうやってCのmain関数の実行にたどりつくのか、というのは概念としては知っているけど、個々のCPUで手順は異なる。</p>
+
+<p>&ldquo;OSなしのCPUで&#8221;などと書いたけど、OSの立ち上げだって同じ話だったりする。ブートローダーというキーワードで片付けられたりするけど。</p>
+
+<p>ということで、電源投入からそれなりに正しい手順でmain関数を実行するまでのコードを作った。</p>
+
+<!-- more -->
+
+
+<p><a href="https://github.com/mgwsuzuki/v6pi/tree/master/base">https://github.com/mgwsuzuki/v6pi/tree/master/base</a></p>
+
+<p>それなりに正しい手順だけど、テスト目的程度のレベルである。</p>
+
+<h1>ベクタテーブル</h1>
+
+<p>CPUは命令を実行している間に割り込みが入ったとき、ある特定のアドレスにジャンプしたり、特定のアドレスを読み出してそこにジャンプしたりする。このような動作を例外処理と呼び、割り込みは例外処理の1つである。</p>
+
+<p>CPUの例外要因は1つではない。そのため、例外要因ごとに所望の処理ルーチンにジャンプするのを効率化するために、例外要因ごとに番号をつけ、それをインデックスとしたテーブルを作る。これをベクタテーブルなどと呼ぶ。</p>
+
+<p>テーブルの中身はRasPiに使われているARMでは命令そのものである。ただ、CPUごとに実装はそれぞれでジャンプ先のアドレスだったりするものもある。</p>
+
+<p>このテーブルのベースアドレスは0x0か、0xffff_0000を選べる。0xffff_0000はMMUを使ったOSで使用することを想定している。初期状態は0x0である。</p>
+
+<p>ARMでは以下のようなテーブル定義となっている。</p>
+
+<table>
+<thead>
+<tr>
+<th align="left"> 開始アドレス </th>
+<th align="left"> 例外/割り込み名</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"> 0x0000_0000  </td>
+<td align="left"> リセット</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_0004  </td>
+<td align="left"> 未定義命令</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_0008  </td>
+<td align="left"> ソフトウェア割り込み</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_000c  </td>
+<td align="left"> プリフェッチアボート</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_0010  </td>
+<td align="left"> データアボート</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_0014  </td>
+<td align="left"> 予約</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_0018  </td>
+<td align="left"> 割り込み要求</td>
+</tr>
+<tr>
+<td align="left"> 0x0000_001c  </td>
+<td align="left"> 高速割り込み要求</td>
+</tr>
+</tbody>
+</table>
+
+
+<p>このテーブルには命令を記述する必要があり、要するにアセンブラの命令を記述すればよい。ということでvector.sには次のようなコードを記述している。1命令あたり4byteなので、ぴったり8つの要素があるベクタテーブルとなる。</p>
+
+<pre><code>_start:
+    ldr     pc, htbl_reset
+    ldr     pc, htbl_undef
+    ldr     pc, htbl_swi
+    ldr     pc, htbl_pabt
+    ldr     pc, htbl_dabt
+    ldr     pc, htbl_unused
+    ldr     pc, htbl_irq
+    ldr     pc, htbl_fiq
+</code></pre>
+
+<p>&ldquo;htblなんとか&#8221;から始まるラベルは次のようになっている。</p>
+
+<pre><code>htbl_reset:
+    .word   reset_handler
+htbl_undef:
+    .word   undef_handler
+htbl_swi:
+    .word   swi_handler
+htbl_pabt:
+    .word   pabt_handler
+htbl_dabt:
+    .word   dabt_handler
+htbl_unused:
+    .word   unused_handler
+htbl_irq:
+    .word   irq_handler
+htbl_fiq:
+    .word   fiq_handler
+</code></pre>
+
+<p>&ldquo;なんとかhandler&#8221;は例外処理ハンドラの開始アドレスである。つまり、ldr命令で&#8221;なんとかhandler&#8221;のアドレスをプログラムカウンタに読み込ませてジャンプする。</p>
+
+<p>ちなみに、ldr命令ではなくてb命令でジャンプさせる方法もある。が、32MBより離れたアドレスに分岐できないし、後で説明する回避できない副作用があるため用いない。</p>
+
+<h1>リセットハンドラ</h1>
+
+<p>リセットハンドラの処理は以下のようになっている。</p>
+
+<h2>ベクタテーブルのコピー</h2>
+
+<p>名前の通り、電源投入直後やCPUがリセットされたときに実行されるコードである。vector.sでは次のとおり。</p>
+
+<pre><code>        mov     r0, #0x8000
+        mov     r1, #0x0000
+        ldmia   r0!, {r2, r3, r4, r5, r6, r7, r8, r9}
+        stmia   r1!, {r2, r3, r4, r5, r6, r7, r8, r9}
+        ldmia   r0!, {r2, r3, r4, r5, r6, r7, r8, r9}
+        stmia   r1!, {r2, r3, r4, r5, r6, r7, r8, r9}
+</code></pre>
+
+<p>やっていることは、0x8000から32byte分のデータを0x0にコピーしている。</p>
+
+<p>実は、_startラベルから始まるベクタテーブルは、アドレス0x8000に配置されている。0x8000は何かというと、RasPiのARMが起動したときに実行が開始されるアドレスなのである。0x0でない。</p>
+
+<p>これはRasPiに搭載されているSoC(及びメーカー配布のブートローダー)がそうなっているため、どうしようもない。だからベクタテーブルを0x8000に配置すれば電源投入直後だけはしのげる。</p>
+
+<p>かといって、ARMのベクタテーブルの開始アドレスはやはり0x0である。なので、0x8000にあるままでは正しく動作しない。ということで、上記のコードで0x8000にあるベクタテーブルを0x0へコピーしている。</p>
+
+<p>ここにベクタテーブルをb命令で記述できない理由がある。b命令はプログラムカウンタをベースとした相対アドレスで分岐先アドレスを決定するため、命令を別のアドレスに移動すると分岐先アドレスが狂ってしまうのである。</p>
+
+<p>ldr命令もプログラムカウンタをベースとした相対アドレスで読み出しアドレスを決定するけど、読み出し先データも矛盾なくコピーするので問題ない。そして、読み出し先に書いてあるジャンプ先アドレスは絶対アドレスなので問題なくジャンプできる。</p>
+
+<h2>モードとスタックポインタの設定</h2>
+
+<p>ARMはCPUの動作モードして以下のようなものがある。</p>
+
+<ul>
+<li>アボート</li>
+<li>高速割り込み要求</li>
+<li>割り込み要求</li>
+<li>スーパバイザ</li>
+<li>システム</li>
+<li>未定義</li>
+<li>ユーザ</li>
+</ul>
+
+
+<p>これらはcpsr(レジスタ)の[4:0]に値を書き込むことで変更できる。といっても、書き込み権限のないモードになってしまうと書き込めない。</p>
+
+<p>もうひとつ大切なことは、各モードごとにいくつかのレジスタが切り替わる、バンクレジスタとなっていて、スタックポインタもそれに含まれる。</p>
+
+<p>現状のv6piではCPUモードを切り替えるようなレベルではないため、スーパバイザのみ設定しているが、例えば割り込みを使うようになったらそのモードにおけるスタックポインタを正しく設定する必要がある。</p>
+
+<pre><code>        mov     r0, #(0x13|0xc0)
+        msr     cpsr_c, r0
+        mov     sp, #0x10000000
+</code></pre>
+
+<p>なお、上のコードでは割り込みを禁止している。</p>
+
+<h2>メモリの初期化</h2>
+
+<p>ブートローダーによって、SDカードから実行したいプログラムはすでにメモリに読み込まれているが、これを実行する前の準備が必要である。</p>
+
+<p>1つは初期化データのコピー、もうひとつはBSS領域をゼロクリアすることである。</p>
+
+<p>初期化データはプログラムが実行される前にメモリにセットされている値だが、これは.textの後ろに配置されていて、これを.dataの領域にコピーする必要がある。</p>
+
+<pre><code>        ldr     r1, =__text_end__
+        ldr     r2, =__data_start__
+        ldr     r3, =__data_end__
+1:      cmp     r2, r3
+        ldrlo   r0, [r1], #4
+        strlo   r0, [r2], #4
+        blo     1b
+</code></pre>
+
+<p>このおかげで初期化データをプログラムが変更しても、リセットすることでもとの値へ復活させることができる。</p>
+
+<p>bss領域は、初期値がゼロでなければいけない。ということでゼロクリアする。</p>
+
+<pre><code>        mov     r0, #0
+        ldr     r1, =__bss_start__
+        ldr     r2, =__bss_end__
+2:      cmp     r1, r2
+        strlo   r0, [r1], #4
+        blo     2b
+</code></pre>
+
+<p>なお、&#8221;__&ldquo;で始まるシンボルはmemmapに記述されており、リンカの処理で値が確定する。</p>
+
+<h2>mainをコール</h2>
+
+<p>ここでようやくmain関数をコールすることができる。</p>
+
+<pre><code>        bl      main
+</code></pre>
+
+<p>書きながら気が付いたが、main関数から戻ってきたときの処理が入っていない。後で無限ループを追加しておこう。</p>
+
+<h1>その他のハンドラ</h1>
+
+<p>リセット以外のハンドラを記述するためのテンプレートである。現在は何も使っていないのですべて無限ループとなっているが、必要に応じて記述する。</p>
+
+<pre><code>undef_handler:
+        b       undef_handler
+swi_handler:
+        b       swi_handler
+pabt_handler:
+        b       pabt_handler
+dabt_handler:
+        b       dabt_handler
+unused_handler:
+        b       unused_handler
+irq_handler:
+        b       irq_handler
+fiq_handler:
+        b       fiq_handler
+</code></pre>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[RasPiの起動とarmjtag]]></title>
