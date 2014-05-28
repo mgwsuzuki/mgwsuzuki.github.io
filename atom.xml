@@ -4,7 +4,7 @@
   <title><![CDATA[like a /dev/null]]></title>
   <link href="http://mgwsuzuki.github.io/atom.xml" rel="self"/>
   <link href="http://mgwsuzuki.github.io/"/>
-  <updated>2014-05-19T22:16:14+09:00</updated>
+  <updated>2014-05-29T00:41:04+09:00</updated>
   <id>http://mgwsuzuki.github.io/</id>
   <author>
     <name><![CDATA[mgwsuzuki]]></name>
@@ -12,6 +12,148 @@
   </author>
   <generator uri="http://octopress.org/">Octopress</generator>
 
+  
+  <entry>
+    <title type="html"><![CDATA[Gpioなコード]]></title>
+    <link href="http://mgwsuzuki.github.io/blog/2014/05/28/gpio/"/>
+    <updated>2014-05-28T23:21:33+09:00</updated>
+    <id>http://mgwsuzuki.github.io/blog/2014/05/28/gpio</id>
+    <content type="html"><![CDATA[<p>General Purpose I/O。RasPiに限らず、最近のマイコンは機能を減らすことなくピンの数を抑える工夫がある。</p>
+
+<p>それ以外にも、チップの外につけるパーツを減らせるようになっている。</p>
+
+<!-- more -->
+
+
+<p>参照したドキュメントはSoC-Peripherals.pdfで、6節にGPIOの説明がある。</p>
+
+<p>GPIOなソースコードはこちら:
+<a href="https://github.com/mgwsuzuki/v6pi/tree/master/base">https://github.com/mgwsuzuki/v6pi/tree/master/base</a></p>
+
+<h1>ピンの機能設定</h1>
+
+<p>SoCに内蔵される機能は多いほど応用が広がるわけだが、それはつまり入力または出力のピン数の増加を意味する。</p>
+
+<p>とは言っても、チップの外に出せるピンの数は有限であり、またユーザがすべての機能を使うわけでもないので、機能ごとに専用のピンを割り当てるのは非効率である。</p>
+
+<p>そんなわけでRasPiでは、1つのピンに対して複数の機能をマルチプレクスし、ユーザにそれを選択してもらうようになっている。</p>
+
+<p>vp_gpio.hでは以下のようなコードでピンの機能選択ができる。</p>
+
+<pre><code>// function select
+typedef enum {
+  VP_GPIO_FSEL_INPUT  = 0,
+  VP_GPIO_FSEL_OUTPUT = 1,
+  VP_GPIO_FSEL_ALT0   = 4,
+  VP_GPIO_FSEL_ALT1   = 5,
+  VP_GPIO_FSEL_ALT2   = 6,
+  VP_GPIO_FSEL_ALT3   = 7,
+  VP_GPIO_FSEL_ALT4   = 3,
+  VP_GPIO_FSEL_ALT5   = 2
+} vp_gpio_fsel_t;
+
+// 指定された番号のGPIOピンのfunctionをセットする
+void vp_gpio_set_fsel(i32_t portnum, vp_gpio_fsel_t fsel);
+</code></pre>
+
+<p>vp_gpio_fsel_tの意味はSoC-Peripherals.pdfをみれば分かると思う。</p>
+
+<h1>出力ピンのレベル指定</h1>
+
+<p>GPIOを出力ピンとしたとき、出力したい値を設定するために以下の2つの関数を用意した。</p>
+
+<pre><code>// 指定された番号のGPIOピンの出力を1にする
+void vp_gpio_set_output(i32_t portnum);
+
+// 指定された番号のGPIOピンの出力を0にする
+void vp_gpio_clear_output(i32_t portnum);
+</code></pre>
+
+<p>これはGPSETnまたはGPCLRnレジスタを叩くだけの関数である。</p>
+
+<p>上記のように、RasPiではピンの出力を1にするか0にするかの2つしか持っていないようだが、マイコンによっては設定したい値そのものを指定できるレジスタや、ピン出力を反転するためのレジスタを持つものもある。</p>
+
+<p>特に設定したい値そのものを指定できるレジスタは必須と思っていたけど、RasPiはそうではないようだ。ということで、それが出来る関数を用意してみた。</p>
+
+<pre><code>// 指定された番号のGPIOピンのレベルをセットする
+void vp_gpio_set_level(i32_t portnum, u32_t level);
+</code></pre>
+
+<h1>入力ピンの状態を知る</h1>
+
+<p>GPIOを入力ピンとしたとき、ピンの状態を知るために以下の関数を用意した。</p>
+
+<pre><code>// 指定された番号のGPIOピンのレベルを返す
+u32_t vp_gpio_get_level(i32_t portnum);
+</code></pre>
+
+<p>指定されたピンがHなら1、Lなら0を返す。</p>
+
+<h1>プルアップとプルダウン</h1>
+
+<p>RasPiでは、各ピンごとにプルアップ、プルダウン、プルアップ/ダウンなしを指定できる。ただ、その指定方法は変わっていて、</p>
+
+<ul>
+<li>GPPUDにモードを指定し</li>
+<li>150clk待って</li>
+<li>GPPUDCLKnの指定したいピンに対応するビットに1を書き込み</li>
+<li>150clk待って</li>
+<li>GPPUDCLKnの指定したいピンに対応するビットに0を書き込む</li>
+</ul>
+
+
+<p>という手順になっている。一見複雑に見えるが、LSI設計している人間にとってその狙いと回路構成が目に浮かぶのである。</p>
+
+<p>150clk待つというのは正確には150clk以上待てばいいはずで、実装もそうしている。</p>
+
+<p>ここで忘れていけないのは、最後のステップのGPPUDCLKnに0を書き込むところである。</p>
+
+<p>GPPUDに書き込んだ値を記憶させるのに重要なことは、GPPUDCLKnを0から1に変化させることである。いわゆる立ち上がりエッジと言われるものだが、これを発生させるためにはGPPUDCLKnに1を書き込む前にその値が0になっていないといけない。</p>
+
+<p>もし0を書き込むのを忘れて、別のピンのプルアップ/ダウンを設定しようとして1を書き込んでも、1から1への変化(というか変化していない)じゃ立ち上がりエッジは発生しない。</p>
+
+<p>その結果、正しく設定できないということになる。</p>
+
+<p>vp_gpio.hでは以下のコード及び関数でプルアップ/プルダウンを指定できる。</p>
+
+<pre><code>// pull-up/down
+typedef enum {
+  VP_GPIO_PUD_OFF  = 0,
+  VP_GPIO_PUD_DOWN = 1,
+  VP_GPIO_PUD_UP   = 2
+} vp_gpio_pud_t;
+
+// 指定された番号のGPIOピンのpull-up/downをセットする
+void vp_gpio_set_pud(i32_t portnum, vp_gpio_pud_t pud);
+</code></pre>
+
+<h1>プルアップ/プルダウンの使い分け</h1>
+
+<p>そもそもプルアップとかプルダウンってなんのために使うのか、というのを理解しないといけない。</p>
+
+<p>よくデジタル回路では0を示すのに0V、1を示すのに3.3Vとか2.5Vの電圧をかける、みたいに言われる。</p>
+
+<p>がしかし、デジタル回路といってももとはアナログな振る舞いに支配されるわけで、そこには0でも1でもない状態が存在する。</p>
+
+<p>1つの信号線を誰かが0Vや3.3Vに駆動していればいいのだが、実は誰も駆動していない、という状態が普通にある。例えば、USBなどのコネクタに何も挿さっていない場合を考えてみるとよい。</p>
+
+<p>そのような、だれも駆動していない信号を入力したら、それは0になるのか、1になるのか?</p>
+
+<p>答えは「分からない」とか「0や1にふらつく」である。</p>
+
+<p>この「ふらつく」というのがかなり厄介で、例えばUARTなら1->0の変化でデータが到着したと判断するので、ふらつきはすなわち誤受信になる。割り込み信号ならふらつくたびに意図しない割り込みが発生する。</p>
+
+<p>これは困るので、それを回避するためにプルアップ/プルダウンをする。</p>
+
+<p>プルアップにしたら、誰も信号を駆動していないときに1になり、プルダウンにしたら、誰も信号を駆動していないときに0になる。もし誰かが信号を駆動したらプルアップ/プルダウンの指定に関係なく、駆動されたレベルになる。</p>
+
+<p>つまり、主に入力ピンのための機能だと思えばよい。</p>
+
+<p>出力ピンなら自らが0か1に駆動するから基本的にいらない。が、自ら「駆動しない」という使い方をするなら別だが、ちょっと割愛。</p>
+
+<p>プルアップにするかプルダウンにするかは、そのピンの機能によりけりであり、誤動作しないように設定すればよい。</p>
+]]></content>
+  </entry>
   
   <entry>
     <title type="html"><![CDATA[Baseなコード]]></title>

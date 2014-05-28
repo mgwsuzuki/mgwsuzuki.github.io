@@ -1,0 +1,383 @@
+
+<!DOCTYPE html>
+<!--[if IEMobile 7 ]><html class="no-js iem7"><![endif]-->
+<!--[if lt IE 9]><html class="no-js lte-ie8"><![endif]-->
+<!--[if (gt IE 8)|(gt IEMobile 7)|!(IEMobile)|!(IE)]><!--><html class="no-js" lang="en"><!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  <title>Gpioなコード - like a /dev/null</title>
+  <meta name="author" content="mgwsuzuki">
+
+  
+  <meta name="description" content="General Purpose I/O。RasPiに限らず、最近のマイコンは機能を減らすことなくピンの数を抑える工夫がある。 それ以外にも、チップの外につけるパーツを減らせるようになっている。 参照したドキュメントはSoC-Peripherals.pdfで、6節にGPIOの説明がある。 &hellip;">
+  
+
+  <!-- http://t.co/dKP3o1e -->
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  
+  <link rel="canonical" href="http://mgwsuzuki.github.io/blog/2014/05/28/gpio">
+  <link href="/favicon.png" rel="icon">
+  <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css">
+  <link href="/atom.xml" rel="alternate" title="like a /dev/null" type="application/atom+xml">
+  <link href="/stylesheets/data-table.css" rel="stylesheet" type="text/css" />
+  <script src="/javascripts/modernizr-2.0.js"></script>
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+  <script>!window.jQuery && document.write(unescape('%3Cscript src="./javascripts/libs/jquery.min.js"%3E%3C/script%3E'))</script>
+  <script src="/javascripts/octopress.js" type="text/javascript"></script>
+  <!--Fonts from Google"s Web font directory at http://google.com/webfonts -->
+<link href="//fonts.googleapis.com/css?family=PT+Serif:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+<link href="//fonts.googleapis.com/css?family=PT+Sans:regular,italic,bold,bolditalic" rel="stylesheet" type="text/css">
+
+  
+  <script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-18056731-5']);
+    _gaq.push(['_trackPageview']);
+
+    (function() {
+      var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+      ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+      var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+  </script>
+
+
+</head>
+
+<body   >
+  <header role="banner"><hgroup>
+  <h1><a href="/">like a /dev/null</a></h1>
+  
+    <h2>いつかは捨てられる儚いモノたちの吹き溜まり</h2>
+  
+</hgroup>
+
+</header>
+  <nav role="navigation"><ul class="subscription" data-subscription="rss">
+  <li><a href="/atom.xml" rel="subscribe-rss" title="subscribe via RSS">RSS</a></li>
+  
+</ul>
+  
+<form action="https://www.google.com/search" method="get">
+  <fieldset role="search">
+    <input type="hidden" name="q" value="site:mgwsuzuki.github.io" />
+    <input class="search" type="text" name="q" results="0" placeholder="Search"/>
+  </fieldset>
+</form>
+  
+<ul class="main-navigation">
+  <li><a href="/">Blog</a></li>
+  <li><a href="/blog/archives">Archives</a></li>
+</ul>
+
+</nav>
+  <div id="main">
+    <div id="content">
+      <div>
+<article class="hentry" role="article">
+  
+  <header>
+    
+      <h1 class="entry-title">Gpioなコード</h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-05-28T23:21:33+09:00" pubdate data-updated="true">May 28<span>th</span>, 2014</time>
+        
+      </p>
+    
+  </header>
+
+
+<div class="entry-content"><p>General Purpose I/O。RasPiに限らず、最近のマイコンは機能を減らすことなくピンの数を抑える工夫がある。</p>
+
+<p>それ以外にも、チップの外につけるパーツを減らせるようになっている。</p>
+
+<!-- more -->
+
+
+<p>参照したドキュメントはSoC-Peripherals.pdfで、6節にGPIOの説明がある。</p>
+
+<p>GPIOなソースコードはこちら:
+<a href="https://github.com/mgwsuzuki/v6pi/tree/master/base">https://github.com/mgwsuzuki/v6pi/tree/master/base</a></p>
+
+<h1>ピンの機能設定</h1>
+
+<p>SoCに内蔵される機能は多いほど応用が広がるわけだが、それはつまり入力または出力のピン数の増加を意味する。</p>
+
+<p>とは言っても、チップの外に出せるピンの数は有限であり、またユーザがすべての機能を使うわけでもないので、機能ごとに専用のピンを割り当てるのは非効率である。</p>
+
+<p>そんなわけでRasPiでは、1つのピンに対して複数の機能をマルチプレクスし、ユーザにそれを選択してもらうようになっている。</p>
+
+<p>vp_gpio.hでは以下のようなコードでピンの機能選択ができる。</p>
+
+<pre><code>// function select
+typedef enum {
+  VP_GPIO_FSEL_INPUT  = 0,
+  VP_GPIO_FSEL_OUTPUT = 1,
+  VP_GPIO_FSEL_ALT0   = 4,
+  VP_GPIO_FSEL_ALT1   = 5,
+  VP_GPIO_FSEL_ALT2   = 6,
+  VP_GPIO_FSEL_ALT3   = 7,
+  VP_GPIO_FSEL_ALT4   = 3,
+  VP_GPIO_FSEL_ALT5   = 2
+} vp_gpio_fsel_t;
+
+// 指定された番号のGPIOピンのfunctionをセットする
+void vp_gpio_set_fsel(i32_t portnum, vp_gpio_fsel_t fsel);
+</code></pre>
+
+<p>vp_gpio_fsel_tの意味はSoC-Peripherals.pdfをみれば分かると思う。</p>
+
+<h1>出力ピンのレベル指定</h1>
+
+<p>GPIOを出力ピンとしたとき、出力したい値を設定するために以下の2つの関数を用意した。</p>
+
+<pre><code>// 指定された番号のGPIOピンの出力を1にする
+void vp_gpio_set_output(i32_t portnum);
+
+// 指定された番号のGPIOピンの出力を0にする
+void vp_gpio_clear_output(i32_t portnum);
+</code></pre>
+
+<p>これはGPSETnまたはGPCLRnレジスタを叩くだけの関数である。</p>
+
+<p>上記のように、RasPiではピンの出力を1にするか0にするかの2つしか持っていないようだが、マイコンによっては設定したい値そのものを指定できるレジスタや、ピン出力を反転するためのレジスタを持つものもある。</p>
+
+<p>特に設定したい値そのものを指定できるレジスタは必須と思っていたけど、RasPiはそうではないようだ。ということで、それが出来る関数を用意してみた。</p>
+
+<pre><code>// 指定された番号のGPIOピンのレベルをセットする
+void vp_gpio_set_level(i32_t portnum, u32_t level);
+</code></pre>
+
+<h1>入力ピンの状態を知る</h1>
+
+<p>GPIOを入力ピンとしたとき、ピンの状態を知るために以下の関数を用意した。</p>
+
+<pre><code>// 指定された番号のGPIOピンのレベルを返す
+u32_t vp_gpio_get_level(i32_t portnum);
+</code></pre>
+
+<p>指定されたピンがHなら1、Lなら0を返す。</p>
+
+<h1>プルアップとプルダウン</h1>
+
+<p>RasPiでは、各ピンごとにプルアップ、プルダウン、プルアップ/ダウンなしを指定できる。ただ、その指定方法は変わっていて、</p>
+
+<ul>
+<li>GPPUDにモードを指定し</li>
+<li>150clk待って</li>
+<li>GPPUDCLKnの指定したいピンに対応するビットに1を書き込み</li>
+<li>150clk待って</li>
+<li>GPPUDCLKnの指定したいピンに対応するビットに0を書き込む</li>
+</ul>
+
+
+<p>という手順になっている。一見複雑に見えるが、LSI設計している人間にとってその狙いと回路構成が目に浮かぶのである。</p>
+
+<p>150clk待つというのは正確には150clk以上待てばいいはずで、実装もそうしている。</p>
+
+<p>ここで忘れていけないのは、最後のステップのGPPUDCLKnに0を書き込むところである。</p>
+
+<p>GPPUDに書き込んだ値を記憶させるのに重要なことは、GPPUDCLKnを0から1に変化させることである。いわゆる立ち上がりエッジと言われるものだが、これを発生させるためにはGPPUDCLKnに1を書き込む前にその値が0になっていないといけない。</p>
+
+<p>もし0を書き込むのを忘れて、別のピンのプルアップ/ダウンを設定しようとして1を書き込んでも、1から1への変化(というか変化していない)じゃ立ち上がりエッジは発生しない。</p>
+
+<p>その結果、正しく設定できないということになる。</p>
+
+<p>vp_gpio.hでは以下のコード及び関数でプルアップ/プルダウンを指定できる。</p>
+
+<pre><code>// pull-up/down
+typedef enum {
+  VP_GPIO_PUD_OFF  = 0,
+  VP_GPIO_PUD_DOWN = 1,
+  VP_GPIO_PUD_UP   = 2
+} vp_gpio_pud_t;
+
+// 指定された番号のGPIOピンのpull-up/downをセットする
+void vp_gpio_set_pud(i32_t portnum, vp_gpio_pud_t pud);
+</code></pre>
+
+<h1>プルアップ/プルダウンの使い分け</h1>
+
+<p>そもそもプルアップとかプルダウンってなんのために使うのか、というのを理解しないといけない。</p>
+
+<p>よくデジタル回路では0を示すのに0V、1を示すのに3.3Vとか2.5Vの電圧をかける、みたいに言われる。</p>
+
+<p>がしかし、デジタル回路といってももとはアナログな振る舞いに支配されるわけで、そこには0でも1でもない状態が存在する。</p>
+
+<p>1つの信号線を誰かが0Vや3.3Vに駆動していればいいのだが、実は誰も駆動していない、という状態が普通にある。例えば、USBなどのコネクタに何も挿さっていない場合を考えてみるとよい。</p>
+
+<p>そのような、だれも駆動していない信号を入力したら、それは0になるのか、1になるのか?</p>
+
+<p>答えは「分からない」とか「0や1にふらつく」である。</p>
+
+<p>この「ふらつく」というのがかなり厄介で、例えばUARTなら1->0の変化でデータが到着したと判断するので、ふらつきはすなわち誤受信になる。割り込み信号ならふらつくたびに意図しない割り込みが発生する。</p>
+
+<p>これは困るので、それを回避するためにプルアップ/プルダウンをする。</p>
+
+<p>プルアップにしたら、誰も信号を駆動していないときに1になり、プルダウンにしたら、誰も信号を駆動していないときに0になる。もし誰かが信号を駆動したらプルアップ/プルダウンの指定に関係なく、駆動されたレベルになる。</p>
+
+<p>つまり、主に入力ピンのための機能だと思えばよい。</p>
+
+<p>出力ピンなら自らが0か1に駆動するから基本的にいらない。が、自ら「駆動しない」という使い方をするなら別だが、ちょっと割愛。</p>
+
+<p>プルアップにするかプルダウンにするかは、そのピンの機能によりけりであり、誤動作しないように設定すればよい。</p>
+</div>
+
+
+  <footer>
+    <p class="meta">
+      
+  
+
+<span class="byline author vcard">Posted by <span class="fn">mgwsuzuki</span></span>
+
+      
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2014-05-28T23:21:33+09:00" pubdate data-updated="true">May 28<span>th</span>, 2014</time>
+      
+
+<span class="categories">
+  
+    <a class='category' href='/blog/categories/v6pi/'>v6pi</a>
+  
+</span>
+
+
+    </p>
+    
+      <div class="sharing">
+  
+  <a href="//twitter.com/share" class="twitter-share-button" data-url="http://mgwsuzuki.github.io/blog/2014/05/28/gpio/" data-via="" data-counturl="http://mgwsuzuki.github.io/blog/2014/05/28/gpio/" >Tweet</a>
+  
+  
+  
+</div>
+
+    
+    <p class="meta">
+      
+        <a class="basic-alignment left" href="/blog/2014/05/19/base/" title="Previous Post: baseなコード">&laquo; baseなコード</a>
+      
+      
+    </p>
+  </footer>
+  <script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+  <!-- 記事下 -->
+  <ins class="adsbygoogle"
+       style="display:inline-block;width:468px;height:60px"
+       data-ad-client="ca-pub-8758761557521197"
+       data-ad-slot="1425043892"></ins>
+  <script>
+    (adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</article>
+
+</div>
+
+<aside class="sidebar">
+  
+    <section>
+<script async src="//pagead2.googlesyndication.com/pagead/js/adsbygoogle.js"></script>
+<!-- サイド -->
+<ins class="adsbygoogle"
+     style="display:inline-block;width:300px;height:250px"
+     data-ad-client="ca-pub-8758761557521197"
+     data-ad-slot="2762176290"></ins>
+<script>
+(adsbygoogle = window.adsbygoogle || []).push({});
+</script>
+</section>
+<section>
+  <h1>Recent Posts</h1>
+  <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2014/05/28/gpio/">Gpioなコード</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/19/base/">Baseなコード</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/08/booting/">RasPiの起動とarmjtag</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/06/gdb/">コマンドラインでgdb</a>
+      </li>
+    
+      <li class="post">
+        <a href="/blog/2014/05/05/environment/">作業環境</a>
+      </li>
+    
+  </ul>
+</section>
+
+
+
+
+
+  
+</aside>
+
+
+    </div>
+  </div>
+  <footer role="contentinfo"><p>
+  Copyright &copy; 2014 - mgwsuzuki -
+  <span class="credit">Powered by <a href="http://octopress.org">Octopress</a></span>
+</p>
+
+</footer>
+  
+
+
+
+
+
+
+
+  <script type="text/javascript">
+    (function(){
+      var twitterWidgets = document.createElement('script');
+      twitterWidgets.type = 'text/javascript';
+      twitterWidgets.async = true;
+      twitterWidgets.src = '//platform.twitter.com/widgets.js';
+      document.getElementsByTagName('head')[0].appendChild(twitterWidgets);
+    })();
+  </script>
+
+
+
+
+
+</body>
+</html>
